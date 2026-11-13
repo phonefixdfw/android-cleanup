@@ -1,8 +1,12 @@
 'use strict';
 history.replaceState(null, '', '/');
 const $ = id => document.getElementById(id);
-let token = '', stamp = '', reveal = false, current = null, nextCapture = 0;
+let token = '', stamp = '', phonesStamp = '', reveal = false, current = null, nextCapture = 0;
 function phonePanels(state) {
+  $('capture').disabled = !$('phone').value || Date.now() < nextCapture;
+  const key = JSON.stringify([state.phones, state.phone_error, state.serial, reveal]);
+  if (key === phonesStamp) return; // Keep an open phone selector stable during polling.
+  phonesStamp = key;
   $('phones').replaceChildren();
   const selected = $('phone').value;
   $('phone').replaceChildren(new Option('Select a phone…', ''));
