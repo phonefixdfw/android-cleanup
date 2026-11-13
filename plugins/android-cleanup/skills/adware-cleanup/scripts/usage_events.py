@@ -7,6 +7,10 @@ import argparse
 import datetime as dt
 import re
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from browsers import BROWSERS
 
 for stream in (sys.stdout, sys.stderr):
     try:
@@ -16,8 +20,6 @@ for stream in (sys.stdout, sys.stderr):
 
 AD_HINTS = re.compile(r"ads?\b|Ad(Activity|View)|Interstitial|Fullscreen|applovin|inmobi|bigo|fyber|"
                       r"mbridge|vungle|unity3d\.ads|ironsource|pangle|bytedance|chartboost", re.I)
-BROWSERS = ("com.android.chrome", "com.sec.android.app.sbrowser", "org.mozilla.firefox",
-            "com.microsoft.emmx", "com.opera.browser", "com.brave.browser")
 TYPES = {"ACTIVITY_RESUMED", "NOTIFICATION_INTERRUPTION", "FOREGROUND_SERVICE_START"}
 
 

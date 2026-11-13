@@ -1,0 +1,8 @@
+ShortcutService dump:
+  User: 0
+    ShortcutInfo {id=synthetic-private-id, flags=0x2 [Pin], packageName=com.android.chrome, shortLabel=synthetic-private-label,
+      intents=[Intent { act=android.intent.action.VIEW dat=https://visitor:secret@offers.example/private-path?q=secret cmp=com.android.chrome/.Main }], rank=0}
+    ShortcutInfo {id=dynamic, flags=0x1 [Dyn], packageName=com.android.chrome,
+      intents=[Intent { act=android.intent.action.VIEW dat=https://dynamic.example/ }], rank=0}
+    ShortcutInfo {id=ordinary, flags=0x2 [P], packageName=com.example.app,
+      intents=[Intent { act=android.intent.action.MAIN cmp=com.example.app/.Main }], rank=0}

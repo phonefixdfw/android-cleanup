@@ -3,3 +3,4 @@ com.example.app1/.Main
 com.example.app2/.Main
 com.example.app3/.Main
 com.example.app4/.Main
+com.android.chrome/.Main

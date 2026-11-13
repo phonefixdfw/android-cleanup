@@ -1,0 +1,8 @@
+In-memory daily stats
+  package=com.example.boost totalTimeUsed="00:01" lastTimeUsed="2026-11-13 11:00:00" appLaunchCount=2
+  package=com.example.boost totalTimeUsed="00:01" lastTimeUsed="2026-11-12 11:00:00" appLaunchCount=5
+  time="2026-11-13 11:00:00" type=ACTIVITY_RESUMED package=com.example.boost class=com.example.InterstitialAdActivity
+  time="2026-11-13 11:00:00" type=ACTIVITY_RESUMED package=com.example.boost class=com.example.InterstitialAdActivity
+  time="2026-11-13 11:00:01" type=NOTIFICATION_INTERRUPTION package=com.android.systemui
+  time="2026-11-13 11:00:02" type=ACTIVITY_RESUMED package=com.android.chrome class=com.google.ChromeActivity
+  time="2026-11-13 11:00:03" type=ACTIVITY_RESUMED package=com.example.game class=com.example.Main

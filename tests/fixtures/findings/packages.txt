@@ -1,0 +1,84 @@
+Packages:
+  Package [com.example.boost] (123abc):
+    firstInstallTime=2026-11-10 10:00:00
+    lastUpdateTime=2026-11-10 10:00:00
+    android.permission.REQUEST_INSTALL_PACKAGES: granted=true
+  Package [com.android.chrome] (456def):
+    firstInstallTime=2025-01-01 10:00:00
+    lastUpdateTime=2026-11-01 10:00:00
+  Package [com.samsung.fake] (123abc):
+    codePath=/data/app/~~abc/fake/base.apk
+    firstInstallTime=2026-10-01 10:00:00
+    lastUpdateTime=2026-11-01 10:00:00
+    requested permissions:
+      android.permission.USE_FULL_SCREEN_INTENT
+    install permissions:
+  Package [com.sec.factory] (123abc):
+    codePath=/data/app/~~abc/factory/base.apk
+    firstInstallTime=2009-01-01 10:00:00
+    lastUpdateTime=2026-11-01 10:00:00
+    requested permissions:
+      android.permission.USE_FULL_SCREEN_INTENT
+    install permissions:
+  Package [com.sec.real] (123abc):
+    codePath=/system/app/Real
+    firstInstallTime=2026-10-01 10:00:00
+    lastUpdateTime=2026-11-01 10:00:00
+    requested permissions:
+      android.permission.USE_FULL_SCREEN_INTENT
+    install permissions:
+  Package [com.example.pushed] (123abc):
+    codePath=/data/app/Pushed
+    firstInstallTime=2026-10-01 10:00:00
+    lastUpdateTime=2026-11-01 10:00:00
+    requested permissions:
+      android.permission.USE_FULL_SCREEN_INTENT
+    install permissions:
+  Package [com.example.aura] (123abc):
+    codePath=/data/app/Aura
+    firstInstallTime=2026-10-01 10:00:00
+    lastUpdateTime=2026-11-01 10:00:00
+    requested permissions:
+      android.permission.USE_FULL_SCREEN_INTENT
+    install permissions:
+  Package [com.example.home] (123abc):
+    codePath=/data/app/Home
+    firstInstallTime=2026-10-01 10:00:00
+    lastUpdateTime=2026-11-01 10:00:00
+    requested permissions:
+      android.permission.USE_FULL_SCREEN_INTENT
+    install permissions:
+  Package [com.example.popup] (123abc):
+    codePath=/data/app/Popup
+    firstInstallTime=2026-10-01 10:00:00
+    lastUpdateTime=2026-11-01 10:00:00
+    requested permissions:
+      android.permission.USE_FULL_SCREEN_INTENT
+    install permissions:
+      android.permission.USE_FULL_SCREEN_INTENT: granted=true
+      android.permission.RECEIVE_BOOT_COMPLETED: granted=true
+      android.permission.FOREGROUND_SERVICE: granted=true
+  Package [com.example.clock] (123abc):
+    codePath=/data/app/Clock
+    firstInstallTime=2026-10-01 10:00:00
+    lastUpdateTime=2026-11-01 10:00:00
+    requested permissions:
+      android.permission.USE_FULL_SCREEN_INTENT
+    install permissions:
+      android.permission.USE_FULL_SCREEN_INTENT: granted=true
+      android.permission.SCHEDULE_EXACT_ALARM: granted=true
+  Package [com.example.denied] (123abc):
+    codePath=/data/app/Denied
+    firstInstallTime=2026-10-01 10:00:00
+    lastUpdateTime=2026-11-01 10:00:00
+    requested permissions:
+      android.permission.USE_FULL_SCREEN_INTENT
+    install permissions:
+      android.permission.USE_FULL_SCREEN_INTENT: granted=true
+  Package [com.example.requested] (123abc):
+    codePath=/data/app/Requested
+    firstInstallTime=2026-10-01 10:00:00
+    lastUpdateTime=2026-11-01 10:00:00
+    requested permissions:
+      android.permission.USE_FULL_SCREEN_INTENT
+    install permissions:

@@ -1,0 +1,4 @@
+Row: 0 account_type=com.google, calendar_displayName=synthetic-private-calendar, account_name=synthetic-person@example.com
+Row: 1 account_type=com.example.webcal, calendar_displayName=Synthetic holidays subscription, account_name=synthetic-person@subscriptions.example
+Row: 2 account_type=com.android.exchange, calendar_displayName=synthetic-private-work, account_name=synthetic-person@work.example
+Row: 3 account_type=com.medical, calendar_displayName=synthetic-private-health, account_name=synthetic-person@health.example

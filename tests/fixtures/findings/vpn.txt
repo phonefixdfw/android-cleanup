@@ -1,0 +1,8 @@
+VPNs:
+  0: com.example.tunnel
+    Active package name: com.example.tunnel
+    Active vpn type: 1
+    NetworkCapabilities: [ Transports: VPN ]
+  10: com.example.idle
+    Active package name: com.example.idle
+    Active vpn type: -1
