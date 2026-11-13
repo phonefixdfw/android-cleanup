@@ -134,6 +134,30 @@ Restart Codex. Future updates use the fork's update commands above.
 5. When it's done, ask for **the cleanup report**. The first time, it asks for your shop name, address, phone, website and logo, and saves them to `~/.android-cleanup/` so you're only asked once.
 6. Turn USB debugging back off before the customer leaves.
 
+## Viewing a job in the browser
+
+From the repository checkout, run:
+
+```bash
+python plugins/android-cleanup/skills/adware-cleanup/scripts/gui.py --job "/path/to/job"
+```
+
+Use `python3` on systems where Python 3 has that name. The viewer opens your browser
+and prints a private `http://127.0.0.1:PORT/?token=...` URL. Keep that URL private;
+use it again to open another tab. Add `--port 8765` for a fixed port, and press
+Ctrl+C in the terminal to stop the viewer. It works offline without dependencies.
+
+Job summaries refresh every two seconds as the agent writes them. The viewer shows
+findings, skipped checks, before/after comparisons, removal history and PDF links;
+missing records stay hidden. Serials require a reveal click; Android IDs are never
+included. Raw diagnostic dumps and backups are never served. PDF reports and phone
+screenshots can contain customer information, so use the viewer on a private shop screen.
+
+The phone list is read-only. Explicitly select a phone before **Refresh screenshot**;
+captures are saved locally under the job's `screens/` folder, at most once every ten
+seconds. The viewer never taps, writes to the phone, removes apps, or controls the agent.
+
+
 ## Privacy
 
 Everything runs on your computer and the phone. The plugin itself sends nothing anywhere. Your agent sends what it reads (app lists, website names, screenshots of the phone's settings screens) to Anthropic (Claude Code) or OpenAI (Codex) to work on it, the same as any other session. Tell your customer, and don't use it on phones you're not authorized to service.
