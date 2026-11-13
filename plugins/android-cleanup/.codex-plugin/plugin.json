@@ -1,9 +1,9 @@
 {
   "name": "android-cleanup",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Find and remove pop-up adware on customers' Android and Samsung Galaxy phones over USB, then print a one-page cleanup report with your shop's branding.",
   "author": {
-    "name": "phonefixdfw"
+    "name": "Phone-Fix.com"
   },
   "homepage": "https://github.com/phonefixdfw/android-cleanup",
   "repository": "https://github.com/phonefixdfw/android-cleanup",
