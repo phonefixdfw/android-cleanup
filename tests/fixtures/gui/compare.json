@@ -1,0 +1,1 @@
+{"metrics":{"suspects":{"label":"Suspect apps","before":2,"after":0,"removed":["com.example.bad"],"remaining":[],"added":[]}},"network_settings":{"proxy":{"before":"proxy.example","after":"null"}}}

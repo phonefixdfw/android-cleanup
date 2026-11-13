@@ -12,6 +12,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # -I drops the script 
 from adbtools import Phone, add_serial_arg
 
 
+def screenshot(phone, destination):
+    """Read the framebuffer without writing to the phone."""
+    png = phone.raw("exec-out", "screencap", "-p")
+    if not png.startswith(b"\x89PNG"):
+        raise SystemExit("screenshot failed: is the phone connected and unlocked?")
+    Path(destination).write_bytes(png)
+
+
 def main():
     ap = argparse.ArgumentParser()
     add_serial_arg(ap)
@@ -29,11 +37,7 @@ def main():
     phone.require_connected()
 
     if a.cmd == "shot":
-        png = phone.raw("exec-out", "screencap", "-p")
-        if not png.startswith(b"\x89PNG"):
-            raise SystemExit("screenshot failed: is the phone connected and unlocked?")
-        with open(a.out, "wb") as fh:
-            fh.write(png)
+        screenshot(phone, a.out)
         print("saved " + a.out)
         return
 

@@ -158,6 +158,35 @@ Restart the agent afterward. PCs still using the original marketplace need the s
 
 Script paths above are relative to the installed skill's folder, `plugins/android-cleanup/skills/adware-cleanup/` in this repo. The agent uses full script paths while keeping records in the job folder. On Windows use `py -3 -I`; on macOS/Linux use `python3 -I` before the script path. Device scripts use the phone's explicit serial, as described in the skill.
 
+## Viewing a job in the browser
+
+From the repository checkout, run:
+
+```bash
+python plugins/android-cleanup/skills/adware-cleanup/scripts/gui.py --job "/path/to/job"
+```
+
+Use `python3` on systems where Python 3 has that name. The viewer opens your browser
+and prints a private `http://127.0.0.1:PORT/?token=...` URL. Keep that URL private;
+use it again to open another tab. Add `--port 8765` for a fixed port, and press
+Ctrl+C in the terminal to stop the viewer. It works offline without dependencies.
+
+Job summaries refresh every two seconds as the agent writes them. The viewer shows
+findings, skipped checks, before/after comparisons, removal history and PDF links;
+missing records stay hidden. Serials require a reveal click; Android IDs are never
+included. Raw diagnostic dumps and backups are never served. PDF reports and phone
+screenshots can contain customer information, so use the viewer on a private shop screen.
+
+The phone list is read-only. Explicitly select a phone before **Refresh screenshot**;
+captures are saved locally under the job's `screens/` folder, at most once every ten
+seconds. The viewer never taps, writes to the phone, removes apps, or controls the agent.
+
+**Roadmap:** Step 1 is this read-mostly viewer. Future steps add (2) launching and
+steering Claude Code or Codex with headless streaming, (3) an approval file bound to
+the exact removal list and required by `remove.py`, plus a hook blocking raw
+`adb uninstall`, `pm uninstall` and `pm clear`, and (4) Mac/Windows launchers.
+Only Step 1 is implemented here.
+
 ## Privacy
 
 The diagnostic scripts run on your computer and the phone; they do not upload the job themselves. **Your agent still sends what it reads to Anthropic (Claude Code) or OpenAI (Codex)**, just like any other session. That includes script summaries with app lists, device details, website hosts, calendar subscription metadata and app/activity information, plus any phone-settings screenshots it views and customer details you type in chat. Tell your customer, and use it only on phones you're authorized to service.
