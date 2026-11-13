@@ -16,6 +16,8 @@ On current Android the pop-ups usually **aren't an app at all**. The skill check
 
 Everything starts **read-only**. Nothing is uninstalled until you approve it, and the agent asks which apps the customer actually uses. Free games that show ads *inside* the game are left alone.
 
+Routines checks are Samsung-only; everything else works on any Android phone with USB debugging (Samsung Internet steps apply only if installed).
+
 ## What you need
 
 - **An AI coding agent:** either
