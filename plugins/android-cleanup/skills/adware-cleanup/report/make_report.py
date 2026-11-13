@@ -1,12 +1,13 @@
 """Build the printable one-page phone cleanup report (HTML and PDF) with the shop's own branding.
 
-Usage: python make_report.py data.json Phone-Cleanup-Report.pdf
+Usage: python make_report.py data.json Phone-Cleanup-Report.pdf [--job JOB_FOLDER]
   Shop details come from ~/.android-cleanup/shop.json (see shop-example.json).
   Writes the .html next to the .pdf, prints it with Chrome or Edge, and checks it is one page.
 
 Pure black on white for B&W printing. A fit script shrinks the base font until everything fits the
 fixed 7in x 9.6in sheet, so it is always one US Letter page.
 """
+import argparse
 import base64
 import html
 import json
@@ -69,7 +70,76 @@ def logo_tag(shop):
     return f'<img src="data:{mime};base64,{data}" alt="" class="logo" />'
 
 
-def build_html(d, shop):
+def mapping(value):
+    return value if isinstance(value, dict) else {}
+
+
+def mapping(value):
+    return value if isinstance(value, dict) else {}
+
+
+def read_optional(path):
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+        return value if isinstance(value, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def prefill(data, job):
+    """Use structured job records only; explicit data fields (even empty ones) win."""
+    folder = Path(job)
+    device = mapping(read_optional(folder / "triage-before.json").get("device"))
+    record = read_optional(folder / "job.json")
+    info = [[label, value] for label, value in (
+        ("Device", device.get("model")), ("Android", device.get("android_version")),
+        ("Ticket", record.get("ticket"))) if value and value != "?"]
+    explicit = data.get("info", [])
+    labels = {str(row[0]).casefold() for row in explicit if row}
+    info = [row for row in info if row[0].casefold() not in labels] + list(explicit)
+    # Explicit [] suppresses the entire info strip.
+    if "info" in data and not explicit:
+        info = explicit
+    removed = {}
+    try:
+        with (folder / "actions.log").open(encoding="utf-8") as stream:
+            for line in stream:
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(row, dict):
+                    continue
+                package, action, result = row.get("package"), row.get("action"), row.get("result", "")
+                if not isinstance(package, str) or not package or not isinstance(result, str):
+                    continue
+                if action == "verify" and result == "failed":
+                    removed.pop(package, None)
+                if result == "success" or result.startswith("success:"):
+                    if action in ("restore", "enable"):
+                        removed.pop(package, None)
+                    elif action in ("uninstall", "disable"):
+                        label = row.get("label") if row.get("label_verified") is True else None
+                        removed[package] = [label or "`" + package + "`",
+                                            "Disabled for user 0" if action == "disable" else "Uninstalled"]
+    except OSError:
+        pass
+    comparison = read_optional(folder / "compare.json")
+    rows = [[r["label"], "{} -> {}".format(r["before"], r["after"])]
+            for r in mapping(comparison.get("metrics")).values()
+            if isinstance(r, dict) and all(k in r for k in ("label", "before", "after"))]
+    for key, row in mapping(comparison.get("network_settings")).items():
+        if isinstance(row, dict) and "before" in row and "after" in row:
+            rows.append([key.replace("_", " "), "{} -> {}".format(
+                json.dumps(row["before"], ensure_ascii=False), json.dumps(row["after"], ensure_ascii=False))])
+    defaults = dict(info=info, removed=list(removed.values()), beforeAfter=rows)
+    defaults.update({k: v for k, v in data.items() if k != "info"})
+    return defaults
+
+
+def build_html(d, shop, job=None):
+    if job is not None:
+        d = prefill(d, job)
     info = "".join(
         f'<div class="info-cell"><div class="info-label">{esc(k)}</div><div class="info-value">'
         f'{md(v) if v else "<span class=blank></span>"}</div></div>' for k, v in d.get("info", []))
@@ -134,6 +204,8 @@ def build_html(d, shop):
   .notice-list {{ padding-left: 1.2em; line-height: 1.4; }}
   .notice-list li {{ margin-bottom: 0.2em; }}
 
+  .shop-note {{ flex: none; font-size: 8pt; margin-top: 5pt; overflow-wrap: anywhere; }}
+  td {{ overflow-wrap: anywhere; }}
   .footer {{ flex: none; margin-top: 10pt; padding-top: 8pt; border-top: 1pt solid #000;
     display: flex; justify-content: space-between; font-size: 9pt; }}
 </style></head>
@@ -150,10 +222,14 @@ def build_html(d, shop):
     {f'<div class="info">{info}</div>' if info else ""}
     {result}
     {section("What we found and fixed", table([{"label": "Area", "bold": True, "width": "20%"}, {"label": "What we found", "width": "43%"}, {"label": "What we did"}], d.get("findings")))}
-    {section("Apps removed", table([{"label": "App", "bold": True, "width": "34%"}, {"label": "Why it was removed"}], d.get("removed")))}
+    {section("Apps removed", table([{"label": "App", "bold": True, "width": "34%"}, {"label": "Action / reason"}], d.get("removed")))}
     {section("Checked - no problems found", table([{"label": "Check", "bold": True, "width": "34%"}, {"label": "Result"}], d.get("checked")))}
+    {section("Before / after", table([{"label": "Check", "width": "64%"}, {"label": "Before / after"}], d.get("beforeAfter")))}
+    {('<div class="shop-note">Site-notification channels may include blocked sites. Recent notification counts are snapshots.</div>' if d.get("beforeAfter") else "")}
     {advice}
   </div>
+  {f'<div class="shop-note">{esc(shop["warranty"])}</div>' if shop.get("warranty") else ""}
+  {f'<div class="shop-note">Review us: {esc(shop["reviewUrl"])}</div>' if shop.get("reviewUrl") else ""}
   <div class="footer"><div>{esc(footer[0])}</div><div>{esc(footer[1])}</div></div>
 </div>
 <script>
@@ -203,13 +279,16 @@ def load_shop():
 
 
 def main():
-    if len(sys.argv) != 3:
-        sys.exit(__doc__)
-    data_path, pdf_path = Path(sys.argv[1]), Path(sys.argv[2]).resolve()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("data", type=Path)
+    parser.add_argument("pdf", type=Path)
+    parser.add_argument("--job", type=Path)
+    args = parser.parse_args()
+    data_path, pdf_path = args.data, args.pdf.resolve()
     shop = load_shop()
     data = json.loads(data_path.read_text(encoding="utf-8"))
     html_path = pdf_path.with_suffix(".html")
-    html_path.write_text(build_html(data, shop), encoding="utf-8")
+    html_path.write_text(build_html(data, shop, job=args.job), encoding="utf-8")
 
     with tempfile.TemporaryDirectory() as profile:  # own profile, so an open browser window can't grab the job
         subprocess.run([find_browser(), "--headless", "--disable-gpu", "--no-sandbox", "--no-first-run",
