@@ -1,0 +1,12 @@
+package:com.example.boost installer=null
+package:com.android.chrome installer=com.android.vending
+package:com.samsung.fake installer=null
+package:com.sec.factory installer=null
+package:com.sec.real installer=null
+package:com.example.pushed installer=com.dti.att
+package:com.example.aura installer=ironsrc.aura.tmo
+package:com.example.home installer=com.android.vending
+package:com.example.popup installer=com.android.vending
+package:com.example.clock installer=com.android.vending
+package:com.example.denied installer=com.android.vending
+package:com.example.requested installer=com.android.vending

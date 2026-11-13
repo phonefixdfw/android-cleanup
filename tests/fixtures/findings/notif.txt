@@ -1,0 +1,12 @@
+Notification service:
+  Ranking Config:
+    PackagePreferences: com.android.chrome (10001)
+      NotificationChannel{mId='web:https://offers.example;13439001600000000', mName=off…, mImportance=3}
+      NotificationChannel{mId='web:https://bad.example;99999999999999999999999999999', mImportance=3}
+  Notification List:
+    NotificationRecord(0xabc: pkg=com.example.popup user=UserHandle{0} id=1 tag=synthetic-private-tag)
+      android.text=synthetic-private-notification
+  Archive (3 notifications)
+    StatusBarNotification(pkg=com.example.popup user=UserHandle{0} id=1 tag=synthetic-private-tag)
+    StatusBarNotification(pkg=com.example.popup user=UserHandle{0} id=2 tag=null)
+    StatusBarNotification(pkg=com.android.chrome user=UserHandle{0} id=3 tag=null)

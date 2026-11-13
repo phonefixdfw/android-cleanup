@@ -101,7 +101,7 @@ class ParserTests(unittest.TestCase):
 
     def test_unsupported_checks_are_skipped_and_not_scored(self):
         result = triage.analyze(triage.collect(FakePhone('older')), TODAY)
-        self.assertEqual(len(result['skipped_checks']), 6)
+        self.assertEqual(len(result['skipped_checks']), 6 + 11)
         self.assertEqual(result['access']['draws over other apps'], [])
         self.assertNotIn('no app icon', ' '.join(result['suspects'][0]['reasons']))
         output = io.StringIO()
@@ -127,6 +127,93 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(dict(phone.calls)['usage'], 180)
         self.assertEqual(dict(phone.calls)['packages'], 180)
         self.assertEqual(triage.COMMANDS['notif'], 'dumpsys notification')
+
+    def test_new_scoring_flags_from_synthetic_case(self):
+        raw = triage.collect(FakePhone('findings'))
+        result = triage.analyze(raw, TODAY)
+        apps = {r['package']: r for r in result['suspects']}
+        self.assertTrue(apps['com.samsung.fake']['source'].startswith('SIDELOADED'))
+        self.assertIn('pretends to be a Samsung/system app', apps['com.samsung.fake']['reasons'])
+        for pkg in ('com.sec.factory', 'com.sec.real'):
+            self.assertEqual(apps[pkg]['source'], 'factory preinstalled')
+        for pkg in ('com.example.pushed', 'com.example.aura'):
+            self.assertEqual(apps[pkg]['source'], 'pushed by carrier app installer (DT Ignite/Aura)')
+            # hidden 2, unused 1, carrier push 1
+            self.assertEqual(apps[pkg]['score'], 4)
+        self.assertEqual(apps['com.samsung.fake']['score'], 9)  # spoof 2 + sideload 4 + hidden 2 + unused 1
+        self.assertIn('default home', apps['com.example.home']['reasons'])
+        self.assertEqual(apps['com.example.home']['score'], 6)
+        popup = apps['com.example.popup']
+        self.assertEqual(popup['score'], 8)  # hidden 2, unused 1, listener 2, FSI 2, boot/service 1
+        self.assertIn('reads notifications', popup['reasons'])
+        self.assertTrue(any('starts at boot' in r for r in popup['reasons']))
+        for pkg in ('com.example.clock', 'com.example.denied', 'com.example.requested'):
+            self.assertFalse(any('full-screen' in r for r in apps[pkg]['reasons']))
+        raw['full_screen_blocked'] = 'com.example.popup\n'
+        blocked = triage.analyze(raw, TODAY)
+        self.assertFalse(any('full-screen' in r for r in next(
+            a for a in blocked['suspects'] if a['package'] == 'com.example.popup')['reasons']))
+        raw['full_screen_blocked'] = ''
+        # Permission-dump fallback when appops is unsupported.
+        raw['full_screen'] = raw['full_screen_denied'] = 'Unknown operation: USE_FULL_SCREEN_INTENT'
+        fallback = triage.analyze(raw, TODAY)
+        self.assertTrue(any('full-screen' in r for r in next(
+            a for a in fallback['suspects'] if a['package'] == 'com.example.popup')['reasons']))
+
+    def test_new_device_findings_and_privacy(self):
+        result = triage.analyze(triage.collect(FakePhone('findings')), TODAY)
+        self.assertEqual(result['network_settings'], {'proxy': 'proxy.example:8080',
+            'dns_mode': 'hostname', 'dns_specifier': 'dns.example',
+            'always_on_vpn': 'com.example.tunnel', 'active_vpn_apps': ['com.example.tunnel']})
+        self.assertEqual(result['user_certificates'], ['a1b2c3d4.0'])
+        self.assertEqual(result['website_shortcuts'], ['offers.example'])
+        self.assertEqual(result['calendar_subscriptions'], [{'account_type': 'com.example.webcal',
+            'display_name': 'Synthetic holidays subscription', 'account_domain': 'subscriptions.example'}])
+        self.assertEqual(result['notification_sources'], [
+            {'package': 'com.example.popup', 'count': 2, 'suspect': True},
+            {'package': 'com.android.chrome', 'count': 1, 'suspect': False}])
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            triage.print_summary(result, Path('triage'))
+        text = json.dumps(result) + output.getvalue()
+        for private in ('synthetic-person', 'synthetic-private', 'private-path', 'visitor', 'secret', 'dynamic.example'):
+            self.assertNotIn(private, text)
+        self.assertTrue(any(s.startswith('subscribed calendars:') for s in result['skipped_checks']))
+
+    def test_optional_errors_and_unknown_formats_never_become_findings(self):
+        names = ('proxy', 'dns_mode', 'dns_specifier', 'always_on_vpn', 'vpn', 'certificates', 'shortcuts', 'calendars')
+        for error in ('Permission Denial: synthetic', 'java.lang.SecurityException: denied',
+                      "Can't find service: vpn_management", 'ls: /data/misc/user/0/cacerts-added: Permission denied'):
+            raw = dict(self.raw, **{name: error for name in names})
+            result = triage.analyze(raw, TODAY)
+            self.assertEqual(result['network_settings'], {})
+            for key in ('user_certificates', 'website_shortcuts', 'calendar_subscriptions'):
+                self.assertEqual(result[key], [])
+            self.assertTrue(all(any(s.startswith(triage.CHECKS[name] + ':') for s in result['skipped_checks']) for name in names))
+            self.assertNotIn(error, json.dumps(result))
+        raw = dict(self.raw, vpn='VPNs:\n  0: com.example.selected\n', shortcuts='unrecognized', calendars='unrecognized')
+        result = triage.analyze(raw, TODAY)
+        self.assertNotIn('active_vpn_apps', result['network_settings'])
+        for name in ('vpn', 'shortcuts', 'calendars'):
+            self.assertTrue(any(s.startswith(triage.CHECKS[name] + ':') for s in result['skipped_checks']))
+
+    def test_all_browser_variants_are_interesting(self):
+        self.assertIs(triage.BROWSERS, usage_events.BROWSERS)
+        for pkg in triage.BROWSERS:
+            event = ('2026-11-13 12:00:00', 'ACTIVITY_RESUMED', pkg, 'Main')
+            self.assertEqual(usage_events.interesting([event]), [event])
+        self.assertIn('com.sec.android.app.sbrowser.beta', triage.BROWSERS)
+
+    def test_notifications_persistence_allowlist(self):
+        raw = triage.collect(FakePhone('findings'))
+        safe = triage.safe_notifications(raw['notif'])
+        self.assertNotIn('synthetic-private', safe)
+        self.assertNotIn('mName', safe)
+        self.assertEqual(triage.site_channels(safe), triage.site_channels(raw['notif']))
+        self.assertEqual(triage.notification_counts(safe), triage.notification_counts(raw['notif']))
+        active = 'Notification service:\nNotificationRecord(abc: pkg=com.example.active user=0)\nPackagePreferences: com.example.config'
+        self.assertEqual(triage.notification_counts(active), {'com.example.active': 1})
+        self.assertEqual(triage.pinned_websites('ShortcutInfo {flags=0x2, intents=[Intent { dat=https://[broken }]}'), [])
 
     def test_report_html_escapes_customer_text(self):
         html = make_report.build_html({'title': '<script>bad</script>',
@@ -194,12 +281,16 @@ class CommandTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             out = Path(folder) / 'triage'
             summary = Path(folder) / 'summary.json'
-            with patch.object(sys, 'argv', ['triage.py', str(out), '--json', str(summary)]), patch('triage.Phone', return_value=FakePhone('galaxy')), contextlib.redirect_stdout(io.StringIO()):
+            with patch.object(sys, 'argv', ['triage.py', str(out), '--json', str(summary)]), patch('triage.Phone', return_value=FakePhone('findings')), contextlib.redirect_stdout(io.StringIO()):
                 triage.main()
             result = json.loads(summary.read_text(encoding='utf-8'))
             self.assertEqual(result['device']['model'], 'Galaxy Synthetic')
             self.assertEqual(result['site_channels'], [['2026-11-13', 'offers.example']])
             self.assertEqual(len(list(out.glob('*.txt'))), 4)
+            persisted = summary.read_text() + ''.join(f.read_text() for f in out.glob('*.txt'))
+            self.assertNotIn('synthetic-private-notification', persisted)
+            self.assertNotIn('synthetic-person', persisted)
+            self.assertNotIn('private-path', persisted)
 
 
 if __name__ == '__main__':

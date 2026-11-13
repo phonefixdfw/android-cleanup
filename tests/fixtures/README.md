@@ -1,1 +1,3 @@
 All cases are small, hand-written SYNTHETIC outputs. No device recordings or customer data. Stable filenames match triage.COMMANDS. The disconnected case intentionally contains empty files. Future real recordings belong only in the ignored real/ directory.
+
+findings extends galaxy with synthetic spoofed/system apps, carrier pushers, full-screen grants/denials, boot/service permissions, HOME, network settings, CA filenames, pinned/dynamic shortcuts, ordinary/subscription calendars and bounded notification archive entries. The synthetic-private markers exercise output/disk privacy. Older fixtures reject every new command.
