@@ -3,5 +3,7 @@
   "tagline": "Computer & Phone Repair",
   "address": "123 Main St, Yourtown, ST 12345",
   "contact": "(555) 555-0123 · yourshop.com",
-  "logo": "logo.png"
+  "logo": "logo.png",
+  "warranty": "Cleanup service warranty: contact the shop for terms.",
+  "reviewUrl": "https://yourshop.com/review"
 }
