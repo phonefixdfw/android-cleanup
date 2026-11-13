@@ -76,18 +76,18 @@ If `adb devices` shows `no permissions`, the USB rules aren't active yet. Unplug
 ### Claude Code
 Start `claude` in a terminal, then type:
 ```
-/plugin marketplace add nerd-industries/android-cleanup
-/plugin install android-cleanup@android-cleanup
+/plugin marketplace add phonefixdfw/android-cleanup
+/plugin install android-cleanup@phonefixdfw-android-cleanup
 ```
-Restart Claude Code. To update later, run `claude plugin update android-cleanup@android-cleanup` in a terminal and restart Claude Code.
+Restart Claude Code. To update later, run `claude plugin update android-cleanup@phonefixdfw-android-cleanup` in a terminal and restart Claude Code.
 
 ### Codex
 In a terminal:
 ```bash
-codex plugin marketplace add nerd-industries/android-cleanup
-codex plugin add android-cleanup@android-cleanup
+codex plugin marketplace add phonefixdfw/android-cleanup
+codex plugin add android-cleanup@phonefixdfw-android-cleanup
 ```
-To update later, run `codex plugin marketplace upgrade android-cleanup`.
+To update later, run `codex plugin marketplace upgrade phonefixdfw-android-cleanup`.
 
 **Codex needs one setting.** Codex's sandbox blocks network connections by default, and adb talks to its own background service over a local connection. Without this setting, every adb command fails with `cannot connect to daemon`. Add these lines to `~/.codex/config.toml` (on Windows, `%USERPROFILE%\.codex\config.toml`):
 ```toml
@@ -95,6 +95,32 @@ To update later, run `codex plugin marketplace upgrade android-cleanup`.
 network_access = true
 ```
 Before starting Codex, also run `adb start-server` once, so adb's background service runs outside the sandbox and can reach the USB port. The first time Codex saves your shop details, it asks permission to write outside the job folder. Approve it.
+
+## Switching from the original plugin
+
+On each shop PC with the original plugin installed, uninstall it and remove its marketplace, then install the fork. Run the commands for each agent you use on that PC.
+
+### Claude Code
+
+Start `claude`, then type:
+```
+/plugin uninstall android-cleanup@android-cleanup
+/plugin marketplace remove android-cleanup
+/plugin marketplace add phonefixdfw/android-cleanup
+/plugin install android-cleanup@phonefixdfw-android-cleanup
+```
+Restart Claude Code.
+
+### Codex
+
+In a terminal:
+```bash
+codex plugin remove android-cleanup@android-cleanup
+codex plugin marketplace remove android-cleanup
+codex plugin marketplace add phonefixdfw/android-cleanup
+codex plugin add android-cleanup@phonefixdfw-android-cleanup
+```
+Restart Codex. Future updates use the fork's update commands above.
 
 ## Using it
 
@@ -109,6 +135,10 @@ Before starting Codex, also run `adb start-server` once, so adb's background ser
 ## Privacy
 
 Everything runs on your computer and the phone. The plugin itself sends nothing anywhere. Your agent sends what it reads (app lists, website names, screenshots of the phone's settings screens) to Anthropic (Claude Code) or OpenAI (Codex) to work on it, the same as any other session. Tell your customer, and don't use it on phones you're not authorized to service.
+
+## Credits
+
+Forked from [nerd-industries/android-cleanup](https://github.com/nerd-industries/android-cleanup) by Nerd Industries (Nerdy Neighbor, Prescott AZ), MIT.
 
 ## License
 
