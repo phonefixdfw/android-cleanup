@@ -1,0 +1,2 @@
+Error: Unknown command query-op
+Usage: appops [set|get]

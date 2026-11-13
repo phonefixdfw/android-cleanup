@@ -48,20 +48,24 @@ class Phone:
     def _cmd(self, args):
         return [self.adb] + (["-s", self.serial] if self.serial else []) + list(args)
 
-    def raw(self, *args):
+    def raw(self, *args, timeout=60):
         """Run an adb command and return its stdout as bytes. adb errors are shown, never swallowed."""
-        r = subprocess.run(self._cmd(args), capture_output=True)
-        if r.returncode != 0 and r.stderr.strip():
-            print("adb error: " + r.stderr.decode("utf-8", errors="replace").strip(), file=sys.stderr)
+        try:
+            r = subprocess.run(self._cmd(args), capture_output=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            sys.exit(f"adb timed out after {timeout}s; phone disconnected or adb failed, re-run.")
+        self.last_returncode = r.returncode
+        self.last_error = r.stderr.decode("utf-8", errors="replace").strip()
+        if r.returncode != 0:
+            print(f"adb error (exit {r.returncode}): {self.last_error or 'no error details'}", file=sys.stderr)
         return r.stdout
 
     def require_connected(self):
         """Stop with a plain explanation unless exactly this phone is connected and authorized."""
-        r = subprocess.run(self._cmd(["get-state"]), capture_output=True, text=True, errors="replace")
-        state = (r.stdout or "").strip()
+        state = self.raw("get-state").decode("utf-8", errors="replace").strip()
         if state == "device":
             return
-        err = (r.stderr or "").strip()
+        err = self.last_error
         if "unauthorized" in err:
             sys.exit("Phone is unauthorized: unlock it and tap Allow on the 'Allow USB debugging?' prompt.")
         if "no permissions" in err or "insufficient permissions" in err:
@@ -71,9 +75,13 @@ class Phone:
             sys.exit("More than one phone connected: pass --serial (see `adb devices`).")
         sys.exit(f"Phone not ready ({state or err or 'not found'}). Check USB debugging is on and the cable carries data.")
 
-    def shell(self, command):
+    def shell(self, command, timeout=60):
         """Run one shell command string on the phone and return its text output."""
-        return self.raw("shell", command).decode("utf-8", errors="replace").replace("\r\n", "\n")
+        output = self.raw("shell", command, timeout=timeout).decode("utf-8", errors="replace").replace("\r\n", "\n")
+        if self.last_returncode:
+            # Preserve the failure for analysis, including errors printed only on stderr.
+            output += f"\nadb command failed (exit {self.last_returncode}): {self.last_error}"
+        return output
 
 
 def add_serial_arg(parser):
