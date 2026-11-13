@@ -22,8 +22,14 @@ TYPES = {"ACTIVITY_RESUMED", "NOTIFICATION_INTERRUPTION", "FOREGROUND_SERVICE_ST
 
 
 def events(path, dates):
+    with open(path, encoding="utf-8", errors="ignore") as source:
+        return parse_events(source, dates)
+
+
+def parse_events(lines, dates):
+    """Parse event lines in memory (also used by triage)."""
     seen, out = set(), []
-    for line in open(path, encoding="utf-8", errors="ignore"):
+    for line in lines:
         m = re.search(r'time="(\S+ \S+)" type=(\w+) package=(\S+)(?: class=(\S+))?', line)
         if not m or m.group(2) not in TYPES or m.group(1)[:10] not in dates:
             continue
@@ -47,6 +53,9 @@ def main():
     ap.add_argument("--interesting", action="store_true")
     ap.add_argument("--around")
     a = ap.parse_args()
+
+    if a.around and not a.date:
+        ap.error("--around requires --date YYYY-MM-DD")
 
     dates = [a.date] if a.date else [str(dt.date.today() - dt.timedelta(d)) for d in range(a.days)]
     out = events(a.dump, dates)

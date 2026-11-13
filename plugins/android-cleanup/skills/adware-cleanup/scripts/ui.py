@@ -21,6 +21,10 @@ def main():
     s = sub.add_parser("shot")
     s.add_argument("out")
     a = ap.parse_args()
+    try:
+        pat = re.compile(a.pattern, re.I) if a.cmd == "find" and a.pattern else None
+    except re.error as exc:
+        ap.error(f"invalid search pattern: {exc}")
     phone = Phone(a.serial)
     phone.require_connected()
 
@@ -41,7 +45,6 @@ def main():
         time.sleep(1)
     else:
         raise SystemExit("Couldn't read the screen. Wake and unlock the phone, wait for it to settle, and try again.")
-    pat = re.compile(a.pattern, re.I) if a.pattern else None
     for n in re.findall(r"<node [^>]*>", xml):
         t = re.search(r'text="([^"]*)"', n).group(1)
         d = re.search(r'content-desc="([^"]*)"', n).group(1)

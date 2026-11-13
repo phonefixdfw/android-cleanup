@@ -1,0 +1,5 @@
+Notification service:
+  Ranking Config:
+    PackagePreferences: com.android.chrome (10001)
+      NotificationChannel{mId='web:https://offers.example;13439001600000000', mName=off…, mImportance=3}
+      NotificationChannel{mId='web:https://bad.example;99999999999999999999999999999', mImportance=3}

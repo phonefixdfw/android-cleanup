@@ -1,3 +1,11 @@
 __pycache__/
 *.pyc
 .DS_Store
+*.pdf
+triage/
+packages.txt
+third-party.txt
+usage.txt
+notif.txt
+!tests/fixtures/**/*.txt
+tests/fixtures/real/

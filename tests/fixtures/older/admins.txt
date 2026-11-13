@@ -1,0 +1,2 @@
+Current Device Policy Manager state:
+  admin=ComponentInfo{com.example.boost/.Admin}

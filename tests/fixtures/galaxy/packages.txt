@@ -1,0 +1,8 @@
+Packages:
+  Package [com.example.boost] (123abc):
+    firstInstallTime=2026-11-10 10:00:00
+    lastUpdateTime=2026-11-10 10:00:00
+    android.permission.REQUEST_INSTALL_PACKAGES: granted=true
+  Package [com.android.chrome] (456def):
+    firstInstallTime=2025-01-01 10:00:00
+    lastUpdateTime=2026-11-01 10:00:00

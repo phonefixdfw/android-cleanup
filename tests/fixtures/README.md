@@ -1,0 +1,1 @@
+All cases are small, hand-written SYNTHETIC outputs. No device recordings or customer data. Stable filenames match triage.COMMANDS. The disconnected case intentionally contains empty files. Future real recordings belong only in the ignored real/ directory.

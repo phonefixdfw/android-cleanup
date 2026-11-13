@@ -4,6 +4,7 @@ Writes raw dumps to <out-dir> and prints a summary.
 """
 import argparse
 import datetime as dt
+import json
 import re
 import sys
 from pathlib import Path
@@ -34,7 +35,7 @@ def packages_newest_first(dump, listing):
                     info[cur][key] = m.group(1)
     rows = [(info.get(p, {}).get("firstInstallTime", "?"), info.get(p, {}).get("lastUpdateTime", "?"), inst, p)
             for p, inst in installer.items()]
-    return sorted(rows, reverse=True)
+    return sorted(rows, key=lambda r: (r[0] != "?", r[0]), reverse=True)
 
 
 # Installers whose apps count as coming from a store. Anything else (no installer, the system
@@ -95,7 +96,8 @@ def app_usage(usage):
     out = {}
     for m in re.finditer(r'package=(\S+) totalTimeUsed="[^"]*" lastTimeUsed="([^"]+)"(.*)', usage):
         pkg, last, rest = m.group(1), m.group(2), m.group(3)
-        launches = int(re.search(r"appLaunchCount=(\d+)", rest).group(1)) if "appLaunchCount=" in rest else 0
+        launch_match = re.search(r"appLaunchCount=(\d+)", rest)
+        launches = int(launch_match.group(1)) if launch_match else 0
         prev_last, prev_launch = out.get(pkg, ("", 0))
         out[pkg] = (max(prev_last, last if not last.startswith("19") else ""), max(prev_launch, launches))
     return out
@@ -118,7 +120,7 @@ def suspect_apps(dump, listing, usage, today, access, launcher_pkgs):
         source, sideloaded = install_source(installer)
         d = details.get(pkg, {"perms": set()})
         first = (d.get("firstInstallTime") or "")[:10]
-        if sideloaded and (first[:4] < "2010" or pkg.startswith(("com.samsung.", "com.sec."))):
+        if sideloaded and ((first and first[:4] < "2010") or pkg.startswith(("com.samsung.", "com.sec."))):
             source, sideloaded = "factory preinstalled", False  # factory image apps carry a 2008/2009 stamp
         score, why = 0, []
         if pkg.startswith("org.chromium.webapk."):
@@ -170,9 +172,144 @@ def site_channels(notif):
     rows = []
     for host, stamp in found:
         # Chrome stores the grant time as microseconds since 1601-01-01 (Windows FILETIME epoch).
-        when = dt.datetime.fromtimestamp(int(stamp) / 1_000_000 - 11644473600)
+        try:
+            when = dt.datetime(1601, 1, 1) + dt.timedelta(microseconds=int(stamp))
+        except (ValueError, OverflowError):
+            continue
         rows.append((when.strftime("%Y-%m-%d"), host))
     return sorted(rows, reverse=True)
+
+
+# Stable names are also fixture filenames and the collect() API keys.
+COMMANDS = {
+    "device": 'echo "$(getprop ro.product.model) | Android $(getprop ro.build.version.release) | '
+              '$(getprop ro.build.display.id)"; date',
+    "packages": "dumpsys package packages",
+    "notif": "dumpsys notification",  # default redaction retains channel IDs (AOSP NotificationChannel.dump)
+    "usage": "dumpsys usagestats",
+    "third-party": "pm list packages -3 -i",
+    "overlays": "appops query-op SYSTEM_ALERT_WINDOW allow",
+    "admins": "dumpsys device_policy",
+    "accessibility": "settings get secure enabled_accessibility_services",
+    "listeners": "settings get secure enabled_notification_listeners",
+    "home_role": "cmd role get-role-holders android.app.role.HOME",
+    "browser_role": "cmd role get-role-holders android.app.role.BROWSER",
+    "installers": "appops query-op REQUEST_INSTALL_PACKAGES allow",
+    "launcher": "cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER",
+    "date": "date +%F",
+    "browsing": "cmd package query-activities --brief -a android.intent.action.VIEW -c android.intent.category.BROWSABLE -d http://example.com",
+    "installed": "pm list packages",
+}
+ERROR = re.compile(r"(?im)^\s*(?:error\b|usage:|unknown (?:command|operation|option)|"
+                   r"(?:AppOps service|Role manager|Package manager).*commands:|Available commands:|"
+                   r"unsupported\b|not supported\b|(?:cmd: )?can't find service|cannot find service|"
+                   r"exception\b|java\.\w*exception|securityexception|permission denial|"
+                   r"adb:|adb command failed|.*: (?:not found|inaccessible or not found))")
+CHECKS = {"overlays": "draws over other apps", "admins": "device admin",
+          "accessibility": "accessibility service", "listeners": "reads notifications",
+          "home_role": "default home", "browser_role": "default browser",
+          "installers": "install other apps", "launcher": "hidden app icons",
+          "browsing": "browser activity discovery", "installed": "installed browsers"}
+
+
+def collect(phone):
+    """Collect read-only outputs; no files or printing. Longer limits for large dumps."""
+    return {name: phone.shell(command, timeout=180 if name in ("packages", "usage") else 60)
+            for name, command in COMMANDS.items()}
+
+
+def analyze(raw, today):
+    """Validate core dumps and return a JSON-serializable summary, without I/O."""
+    markers = {"packages": r"Package \[", "third-party": r"(?m)^package:",
+               "usage": r"(?i)(?:UsageStats|Usage stats|In-memory (?:daily|weekly)|time range|timeRange|package=|Events:)",
+               "notif": r"(?i)(?:Notification service|Notification Manager|Notification List|NotificationChannel|PackagePreferences)"}
+    for name, marker in markers.items():
+        text = raw.get(name, "")
+        if not text.strip() or ERROR.search(text) or not re.search(marker, text):
+            raise ValueError(f"{name}.txt is empty or malformed: phone disconnected or adb failed, re-run.")
+    skipped = []
+    values = {}
+    for name, label in CHECKS.items():
+        text = raw.get(name)
+        # Empty output is legitimate for access lists and role holders.
+        if (text is None or ERROR.search(text)
+                or (name in ("admins", "installed", "accessibility", "listeners") and not text.strip())
+                or (name == "installed" and not re.search(r"(?m)^package:", text))):
+            skipped.append(f"{label}: command failed or unsupported on this Android version")
+            values[name] = ""
+        else:
+            values[name] = text.strip()
+    launcher = packages_in(values["launcher"])
+    if len(launcher) < 5:
+        launcher = set()
+        if not any(s.startswith("hidden app icons:") for s in skipped):
+            skipped.append("hidden app icons: launcher listing incomplete (fewer than 5 packages)")
+    admins = sorted(set(re.findall(r"ComponentInfo\{[^}]+\}", values["admins"])))
+    access = {"draws over other apps": packages_in(values["overlays"]),
+              "device admin": packages_in(" ".join(admins)),
+              "accessibility service": packages_in(values["accessibility"]),
+              "reads notifications": packages_in(values["listeners"]),
+              "_install": packages_in(values["installers"])}
+    rows = suspect_apps(raw["packages"], raw["third-party"], raw["usage"], today, access, launcher)
+    installed = set(re.findall(r"package:(\S+)", values["installed"]))
+    browsers = [{"package": p, "name": BROWSERS.get(p, p)} for p in sorted(
+        (set(BROWSERS) & installed) | (packages_in(values["browsing"]) & {r[1] for r in rows}))
+        if BROWSERS.get(p, p) is not None]
+    device = raw.get("device", "").strip()
+    parts = device.splitlines()[0].split(" | ") if device else []
+    if len(parts) < 2 or ERROR.search(device):
+        skipped.append("device information: command failed or malformed")
+    days = [str(today - dt.timedelta(d)) for d in range(2)]
+    return {"device": {"model": parts[0] if parts else "?",
+                       "android_version": (parts[1][8:] if len(parts) > 1 and parts[1].startswith("Android ") else "?"),
+                       "summary": device},
+            "packages": packages_newest_first(raw["packages"], raw["third-party"]),
+            "suspects": [{"score": r[0], "package": r[1], "source": r[2], "reasons": r[3]} for r in rows],
+            "browsers": browsers, "site_channels": site_channels(raw["notif"]),
+            "access": {k: sorted(v) for k, v in access.items()},
+            "access_display": {"overlays": values["overlays"], "admins": "\n".join(admins),
+                               "accessibility": values["accessibility"], "listeners": values["listeners"].replace(":", "\n"),
+                               "roles": "\n".join(filter(None, (values["home_role"], values["browser_role"])))},
+            "usage_events": usage_events.interesting(usage_events.parse_events(raw["usage"].splitlines(), days)),
+            "skipped_checks": skipped}
+
+
+def print_summary(result, out, show_all=False):
+    print("== DEVICE")
+    print(result["device"]["summary"])
+    print(f"== RAW DUMPS -> {out}")
+    print("== THIRD-PARTY APPS, NEWEST FIRST (install date | last update | installer | package)")
+    for first, last, inst, pkg in result["packages"][:40]:
+        print(f"{first[:16]} | {last[:16]} | {inst} | {pkg}")
+    if len(result["packages"]) > 40:
+        print(f"   ...{len(result['packages']) - 40} more. Full list: {out / 'third-party.txt'}")
+    for key, title in (("overlays", "DRAW OVER OTHER APPS (SYSTEM_ALERT_WINDOW allowed)"),
+                       ("admins", "DEVICE ADMINS"), ("accessibility", "ACCESSIBILITY SERVICES"),
+                       ("listeners", "NOTIFICATION LISTENERS"), ("roles", "DEFAULT HOME / BROWSER")):
+        print("== " + title)
+        print(result["access_display"][key])
+    print("== SUSPECT APPS, MOST SUSPICIOUS FIRST (score | package | install source | red flags)")
+    print("   Sideloaded apps are top suspects: recommend removing every one the customer can't vouch for.")
+    print("   Store, carrier and Smart Switch apps are trusted sources, but still check the flags.")
+    rows = result["suspects"]
+    for r in rows:
+        if r["score"] >= 3 or show_all:
+            print(f"{r['score']:>2} | {r['package']} | {r['source']} | {'; '.join(r['reasons'])}")
+    print(f"   {sum(r['source'].startswith('SIDELOADED') for r in rows)} sideloaded app(s); "
+          f"{sum(r['score'] < 3 for r in rows)} other app(s) scored below 3 "
+          "(weak or no red flags; full scores: rerun with --all).")
+    print("== BROWSERS INSTALLED (clear site notifications in every one)")
+    for b in result["browsers"]:
+        print(f"{b['name']} ({b['package']})")
+    print("== BROWSER SITE NOTIFICATION CHANNELS, NEWEST FIRST (date granted | site)")
+    print("   Chrome-based browsers only. Android keeps a channel after the site is blocked, so confirm in the browser.")
+    for day, host in result["site_channels"]:
+        print(day, host)
+    print("== USAGE EVENTS (last 2 days): ad screens, browser launches, suspects")
+    for e in result["usage_events"]:
+        print(" ".join(e))
+    print("== CHECKS SKIPPED")
+    print("\n".join(result["skipped_checks"]) or "None")
 
 
 def main():
@@ -180,88 +317,28 @@ def main():
     add_serial_arg(ap)
     ap.add_argument("out")
     ap.add_argument("--all", action="store_true", help="list every third-party app with its score")
+    ap.add_argument("--json", metavar="FILE", help="write the structured summary as JSON")
     a = ap.parse_args()
-    out = Path(a.out)
-    out.mkdir(parents=True, exist_ok=True)
     phone = Phone(a.serial)
     phone.require_connected()
-
-    print("== DEVICE")
-    print(phone.shell('echo "$(getprop ro.product.model) | Android $(getprop ro.build.version.release) | '
-                      '$(getprop ro.build.display.id)"; date').strip())
-
-    print(f"== RAW DUMPS -> {out}")
-    dumps = {"packages.txt": "dumpsys package packages", "notif.txt": "dumpsys notification --noredact",
-             "usage.txt": "dumpsys usagestats", "third-party.txt": "pm list packages -3 -i"}
-    text = {}
-    for name, command in dumps.items():
-        text[name] = phone.shell(command)
-        (out / name).write_text(text[name], encoding="utf-8")
-
-    print("== THIRD-PARTY APPS, NEWEST FIRST (install date | last update | installer | package)")
-    rows = packages_newest_first(text["packages.txt"], text["third-party.txt"])
-    for first, last, inst, pkg in rows[:40]:
-        print(f"{first[:16]} | {last[:16]} | {inst} | {pkg}")
-    if len(rows) > 40:
-        print(f"   ...{len(rows) - 40} more. Full list: {out / 'third-party.txt'}")
-
-    overlays = phone.shell("appops query-op SYSTEM_ALERT_WINDOW allow").strip()
-    admins = sorted(set(re.findall(r"ComponentInfo\{[^}]+\}", phone.shell("dumpsys device_policy"))))
-    a11y = phone.shell("settings get secure enabled_accessibility_services").strip()
-    listeners = phone.shell("settings get secure enabled_notification_listeners").strip()
-    roles = phone.shell("cmd role get-role-holders android.app.role.HOME; "
-                        "cmd role get-role-holders android.app.role.BROWSER").strip()
-    installers = phone.shell("appops query-op REQUEST_INSTALL_PACKAGES allow").strip()
-    print("== DRAW OVER OTHER APPS (SYSTEM_ALERT_WINDOW allowed)")
-    print(overlays)
-    print("== DEVICE ADMINS")
-    print("\n".join(admins))
-    print("== ACCESSIBILITY SERVICES")
-    print(a11y)
-    print("== NOTIFICATION LISTENERS")
-    print(listeners.replace(":", "\n"))
-    print("== DEFAULT HOME / BROWSER")
-    print(roles)
-
-    launcher = packages_in(phone.shell("cmd package query-activities --brief -a android.intent.action.MAIN "
-                                       "-c android.intent.category.LAUNCHER"))
-    if len(launcher) < 5:  # query unsupported on this Android version: skip the hidden-icon check
-        launcher = set()
-    phone_date = phone.shell("date +%F").strip()  # the phone's clock, not the PC's
-    today = dt.date.fromisoformat(phone_date) if re.fullmatch(r"\d{4}-\d{2}-\d{2}", phone_date) else dt.date.today()
-    access = {"draws over other apps": packages_in(overlays), "device admin": packages_in(" ".join(admins)),
-              "accessibility service": packages_in(a11y), "reads notifications": packages_in(listeners),
-              "_install": packages_in(installers)}
-    rows = suspect_apps(text["packages.txt"], text["third-party.txt"], text["usage.txt"], today, access, launcher)
-    sideloaded = [r for r in rows if r[2].startswith("SIDELOADED")]
-    print("== SUSPECT APPS, MOST SUSPICIOUS FIRST (score | package | install source | red flags)")
-    print("   Sideloaded apps are top suspects: recommend removing every one the customer can't vouch for.")
-    print("   Store, carrier and Smart Switch apps are trusted sources, but still check the flags.")
-    if not launcher:
-        print("   (hidden-icon check skipped: this Android version can't list launcher icons over adb)")
-    for score, pkg, source, why in [r for r in rows if r[0] >= 3 or a.all]:
-        print(f"{score:>2} | {pkg} | {source} | {'; '.join(why)}")
-    print(f"   {len(sideloaded)} sideloaded app(s); {sum(1 for r in rows if r[0] < 3)} other app(s) scored below 3 "
-          f"(weak or no red flags; full scores: rerun with --all).")
-
-    print("== BROWSERS INSTALLED (clear site notifications in every one)")
-    third_party = {r[1] for r in rows}
-    browsing = packages_in(phone.shell("cmd package query-activities --brief -a android.intent.action.VIEW "
-                                       "-c android.intent.category.BROWSABLE -d http://example.com"))
-    installed = set(re.findall(r"package:(\S+)", phone.shell("pm list packages")))
-    for pkg in sorted((set(BROWSERS) & installed) | (browsing & third_party)):
-        if BROWSERS.get(pkg, pkg) is not None:
-            print(f"{BROWSERS.get(pkg, pkg)} ({pkg})")
-
-    print("== BROWSER SITE NOTIFICATION CHANNELS, NEWEST FIRST (date granted | site)")
-    print("   Chrome-based browsers only. Android keeps a channel after the site is blocked, so confirm in the browser.")
-    for day, host in site_channels(text["notif.txt"]):
-        print(day, host)
-
-    print("== USAGE EVENTS (last 2 days): ad screens, browser launches, suspects")
-    days = [str(today - dt.timedelta(d)) for d in range(2)]
-    for e in usage_events.interesting(usage_events.events(out / "usage.txt", days)):
-        print(" ".join(e))
+    raw = collect(phone)
+    try:
+        today = dt.date.fromisoformat(raw["date"].strip())
+    except ValueError:
+        today = dt.date.today()
+    try:
+        result = analyze(raw, today)
+    except ValueError as exc:
+        sys.exit(str(exc))
+    if raw["date"].strip() != str(today):
+        result["skipped_checks"].append("phone date: unavailable; usage window uses computer date")
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    for name in ("packages", "notif", "usage", "third-party"):
+        (out / (name + ".txt")).write_text(raw[name], encoding="utf-8")
+    if a.json:
+        Path(a.json).write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print_summary(result, out, a.all)
 
 
 if __name__ == "__main__":
