@@ -157,6 +157,11 @@ The phone list is read-only. Explicitly select a phone before **Refresh screensh
 captures are saved locally under the job's `screens/` folder, at most once every ten
 seconds. The viewer never taps, writes to the phone, removes apps, or controls the agent.
 
+**Roadmap:** Step 1 is this read-mostly viewer. Future steps add (2) launching and
+steering Claude Code or Codex with headless streaming, (3) an approval file bound to
+the exact removal list and required by `remove.py`, plus a hook blocking raw
+`adb uninstall`, `pm uninstall` and `pm clear`, and (4) Mac/Windows launchers.
+Only Step 1 is implemented here.
 
 ## Privacy
 
