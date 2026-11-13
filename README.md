@@ -27,6 +27,7 @@ Routines checks are **Samsung Galaxy only**. On Motorola, Pixel and other Androi
 - **Guarded app removal.** `remove.py` requires `--serial` and `--job`, binds the job to the serial, model and Android ID, and refuses missing or system/preinstalled apps. It previews a plan without changing apps; the agent must show that exact plan and get the tech's yes before adding `--approved`. The flag records approval supplied by the caller; it does not collect consent itself.
 - **Backups and a job trail.** Uninstall backs up every APK split to `backup/<package>/` first; a failed backup stops that package unless the tech explicitly approves `--no-backup`. `--restore` reinstalls the saved APKs, but cannot recover deleted app data, accounts or settings. `--disable` disables an app for user 0 instead; `--enable` undoes that. Restore, disable and enable use the same preview/approval flow. `device.json`, backups and `actions.log` stay with the job; review results and the final package list for failures.
 - **Per-ticket comparisons and reports.** `job.py start` records a ticket and optional tech initials without overwriting an existing `job.json`. Before/after triage JSON feeds `job.py compare`, which writes `compare.json` with counts and removed/remaining/added items for comparable checks. Reports can use `--job` to prefill device, Android version, ticket, successful uninstall/disable actions and a **Before / after** table. Explicit report data wins, including empty lists. Review skipped checks before accepting comparisons. Triage no longer prints the serial and report prefill omits it; removal's local identity and action records still contain it.
+- **A browser job viewer.** The optional read-mostly viewer shows findings, skipped checks, before/after comparisons, the removal log, PDF links and a phone list, with screenshot refresh only after explicitly selecting a phone. It runs offline on localhost with an access token. It never taps, removes apps or controls the agent.
 
 ## What you need
 
@@ -151,22 +152,51 @@ Restart the agent afterward. PCs still using the original marketplace need the s
 3. Make a separate folder for the ticket (for example `Documents/Cleanups/Ticket-123`), start `claude` or `codex` in it, and describe the problem:
    > Customer's Galaxy is plugged in. Pop-ups and a scam website keep opening by themselves, mostly when it's charging. Ticket 123, tech AB.
 4. The agent runs `job.py start --ticket "123" --tech "AB"` from that folder if the ticket is known (`--tech` is optional). It runs read-only triage into `triage-before/` and saves `triage-before.json`. Review the findings and **CHECKS SKIPPED**. Keep the phone unlocked for screen checks; Routines inspection is manual and Samsung-only.
-5. Before changing apps, the agent runs `remove.py --serial <serial> --job "<job-folder>" <package>` as a dry run (a valid preview exits nonzero pending approval; resolve any reported errors first). It shows you the exact plan and waits for your yes before rerunning with `--approved`. A changed package list or option needs a new preview and approval. If unsure, use `--disable`. The agent must use this helper rather than direct uninstall or app-data-clearing commands.
-6. After cleanup, the agent saves `triage-after/` and `triage-after.json`, then runs `job.py compare triage-before.json triage-after.json` from the job folder. Check the comparison against browser settings and any skipped checks; counts alone cannot prove the phone is clean.
-7. Ask for **the cleanup report**. The first time, the agent asks for your shop name, tagline, address, phone/website and logo, and saves `shop.json` and the logo in `~/.android-cleanup/`. Optional `shop.json` fields `warranty` and `reviewUrl` print a small warranty line and a review URL as text (no QR code); omit them to leave them out. See [shop-example.json](plugins/android-cleanup/skills/adware-cleanup/report/shop-example.json) for the format. `report/make_report.py data.json report.pdf --job "<job-folder>"` uses the job records to prefill the report; `--job` is optional. Only verified findings belong in `data.json`, and skipped checks must stay out of **Checked**. Review the report before printing.
-8. Turn USB debugging back off before the customer leaves.
+5. **Optional:** open the [browser job viewer](#viewing-a-job-in-the-browser) on this job folder in a second terminal while the agent works.
+6. Before changing apps, the agent runs `remove.py --serial <serial> --job "<job-folder>" <package>` as a dry run (a valid preview exits nonzero pending approval; resolve any reported errors first). It shows you the exact plan and waits for your yes before rerunning with `--approved`. A changed package list or option needs a new preview and approval. If unsure, use `--disable`. The agent must use this helper rather than direct uninstall or app-data-clearing commands.
+7. After cleanup, the agent saves `triage-after/` and `triage-after.json`, then runs `job.py compare triage-before.json triage-after.json` from the job folder. Check the comparison against browser settings and any skipped checks; counts alone cannot prove the phone is clean.
+8. Ask for **the cleanup report**. The first time, the agent asks for your shop name, tagline, address, phone/website and logo, and saves `shop.json` and the logo in `~/.android-cleanup/`. Optional `shop.json` fields `warranty` and `reviewUrl` print a small warranty line and a review URL as text (no QR code); omit them to leave them out. See [shop-example.json](plugins/android-cleanup/skills/adware-cleanup/report/shop-example.json) for the format. `report/make_report.py data.json report.pdf --job "<job-folder>"` uses the job records to prefill the report; `--job` is optional. Only verified findings belong in `data.json`, and skipped checks must stay out of **Checked**. Review the report before printing.
+9. Turn USB debugging back off before the customer leaves.
 
 Script paths above are relative to the installed skill's folder, `plugins/android-cleanup/skills/adware-cleanup/` in this repo. The agent uses full script paths while keeping records in the job folder. On Windows use `py -3 -I`; on macOS/Linux use `python3 -I` before the script path. Device scripts use the phone's explicit serial, as described in the skill.
 
 ## Viewing a job in the browser
 
-From the repository checkout, run:
+No repository checkout is needed. After updating the plugin and restarting the agent,
+ask Claude Code or Codex in the job session:
+
+> Open the job viewer for this job folder using the full path to scripts/gui.py in your installed android-cleanup skill. Show me the command so I can also run it in a second terminal.
+
+For a manual launch, these are the default installed plugin roots:
+
+| Agent | macOS / Linux | Windows (PowerShell) |
+|---|---|---|
+| Claude Code | `~/.claude/plugins/cache/phonefixdfw-android-cleanup/android-cleanup/<version>/` | `$HOME\.claude\plugins\cache\phonefixdfw-android-cleanup\android-cleanup\<version>\` |
+| Codex | `~/.codex/plugins/cache/phonefixdfw-android-cleanup/android-cleanup/<version>/` | `$HOME\.codex\plugins\cache\phonefixdfw-android-cleanup\android-cleanup\<version>\` |
+
+These follow the documented [Claude Code cache layout](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk)
+and [OpenAI plugin cache layout](https://developers.openai.com/plugins/build/plugins#how-local-marketplaces-work).
+Append `skills/adware-cleanup/scripts/gui.py` to the plugin root. Replace `<version>`
+with the active installed version; older cached copies may still exist. If your
+agent uses a custom plugin location or the script is missing, use the agent route
+above to locate the active copy and check the update. Keep the job folder separate
+from the plugin cache.
+
+Run with the full script and job paths, replacing the placeholders below.
+On macOS / Linux:
 
 ```bash
-python plugins/android-cleanup/skills/adware-cleanup/scripts/gui.py --job "/path/to/job"
+python3 -I "/full/path/to/skills/adware-cleanup/scripts/gui.py" --job "/path/to/job"
 ```
 
-Use `python3` on systems where Python 3 has that name. The viewer opens your browser
+On Windows (PowerShell):
+
+```powershell
+py -3 -I "C:\full\path\to\skills\adware-cleanup\scripts\gui.py" --job "C:\path\to\job"
+```
+
+For a repository checkout, the script is at `plugins/android-cleanup/skills/adware-cleanup/scripts/gui.py`.
+The viewer opens your browser
 and prints a private `http://127.0.0.1:PORT/?token=...` URL. Keep that URL private;
 use it again to open another tab. Add `--port 8765` for a fixed port, and press
 Ctrl+C in the terminal to stop the viewer. It works offline without dependencies.
@@ -203,10 +233,11 @@ From the repo folder, run:
 python -m unittest discover tests
 ```
 
-Use `python3` if your system has no `python` command. Use `python3` if your system has no `python` command. The tests use synthetic fixtures and mocked device calls; they do not contact a phone. They cover triage failures and privacy filtering, detection, guarded removal/restore, job comparisons and report HTML/prefill. GitHub Actions runs the same suite on Linux, Windows and macOS with Python 3.8 and 3.12. These checks do not replace testing a repair's findings on the customer's phone.
+Use `python3` if your system has no `python` command. The tests use synthetic fixtures and mocked device calls; they do not contact a phone. They cover triage failures and privacy filtering, detection, guarded removal/restore, job comparisons, report HTML/prefill and the viewer's HTTP access controls, file serving and screenshot flow. GitHub Actions runs the same suite on Linux, Windows and macOS with Python 3.8 and 3.12. These checks do not replace testing a repair's findings on the customer's phone.
 
 ## Changes
 
+- **1.5.0:** Adds the browser job viewer (#8). This docs/version update documents launching installed copies and bumps all three manifests so plugin updates pick up the viewer; 1.4.0 was published before it merged.
 - **1.4.0:** Includes the merged triage failure/privacy hardening and device-free tests/CI (#2), guarded removal and APK restore (#3), expanded read-only detection and shared browser list (#4), per-ticket comparisons/report prefill and optional shop fields (#5), and Samsung-only Routines/non-Samsung guidance (#6). Sets plugin author/marketplace owner to Phone-Fix.com.
 - **1.3.0:** Pointed marketplace installation, updates and plugin repository/homepage metadata at this fork (#1), retaining the upstream credit and MIT license.
 

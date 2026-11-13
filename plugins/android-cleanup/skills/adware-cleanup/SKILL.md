@@ -22,6 +22,7 @@ The phone is the customer's. Investigate read-only first. **Get the tech's OK be
 - Pass the serial to every command: `--serial <serial>` for scripts and `adb -s <serial>` for adb. Never use `ANDROID_SERIAL=X cmd`, because that fails in PowerShell.
 - Scripts are in this skill's `scripts/` and `report/` folders. Use their full paths. The folder the session starts in is the per-ticket **job folder** (`<job>` below); keep all job records there. Run `PY scripts/job.py start --ticket "<id>" --tech "<initials>"` from that folder if the ticket is known (`--tech` is optional). Existing `job.json` is never overwritten. Reports also work without it. Put screenshots in this job folder, not in the skill folder.
 - **Privacy:** read only script summaries; never cat/open raw dumps (`packages.txt`, `usage.txt`, `notif.txt`). Avoid screenshots of the notification shade. Do not change the customer’s lock-screen/status-bar notification-content settings.
+- **Job viewer (optional):** when asked to open the job viewer, launch `PY "<full path to this skill>/scripts/gui.py" --job "<current job folder>"` in a separate terminal or background process, keep it running while the agent works, and show the tech the full command and private localhost URL it prints.
 - **First run:** if `~/.android-cleanup/shop.json` doesn't exist, ask the tech for the shop details (see Report, step 1) at the start, while triage runs, so the job doesn't stall at the end.
 
 ## Workflow
